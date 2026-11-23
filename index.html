@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Text-TV</title>
+  <meta name="description" content="SVT Text-TV med klickbara sidnummer">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Text-TV">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="content" aria-live="polite">
+    <div id="pages"></div>
+    <div id="message" hidden></div>
+  </main>
+
+  <div id="spinner" hidden aria-hidden="true"></div>
+
+  <nav id="toolbar" aria-label="Navigering">
+    <button id="btn-back" type="button" aria-label="Tillbaka">↩</button>
+    <button id="btn-prev" type="button" aria-label="Föregående sida">◀</button>
+    <form id="page-form" autocomplete="off">
+      <input id="page-input" type="text" inputmode="numeric" pattern="[0-9]*"
+             maxlength="3" aria-label="Sidnummer" placeholder="100">
+    </form>
+    <button id="btn-next" type="button" aria-label="Nästa sida">▶</button>
+    <button id="btn-home" type="button" aria-label="Startsida 100">100</button>
+    <button id="btn-reload" type="button" aria-label="Uppdatera">⟳</button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
