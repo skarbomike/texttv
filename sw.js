@@ -1,6 +1,6 @@
 // Caches the app shell so it starts instantly and offline.
 // Text-TV pages are always fetched from the network (the app keeps its own short-lived cache).
-const VERSION = 'texttv-v5';
+const VERSION = 'texttv-v6';
 const SHELL = [
   './',
   'index.html',
