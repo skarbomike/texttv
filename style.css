@@ -190,6 +190,9 @@ html, body {
   backdrop-filter: blur(10px);
   border-top: 1px solid var(--bar-border);
 }
+/* Landscape (default): the rows dissolve into one line, in the order ↩ ◀ page ▶ 100 Aa ⟳. */
+#toolbar .row { display: contents; }
+#btn-back { order: -1; }
 
 #toolbar button, #page-input {
   height: 42px;
@@ -241,4 +244,14 @@ html, body {
 @media (orientation: portrait) {
   :root { --stretch: 1.5; }
   .subpage img { aspect-ratio: 520 / 600; }
+}
+
+/* Portrait: two toolbar rows. Bottom: ◀ page ▶ (used most, nearest the thumb). Top: ↩ 100 Aa ⟳. */
+@media (orientation: portrait) {
+  :root { --toolbar-h: 100px; }
+  #toolbar { flex-direction: column-reverse; gap: 8px; }
+  #toolbar .row { display: flex; justify-content: center; gap: 8px; width: 100%; }
+  #toolbar .row-nav button { max-width: 96px; }
+  #toolbar .row-nav #page-form { max-width: 128px; }
+  #toolbar .row-tools button { max-width: 80px; height: 38px; }
 }
