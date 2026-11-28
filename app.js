@@ -15,6 +15,10 @@
   const DOUBLE_TAP_MS = 350;
   const DOUBLE_TAP_SLOP = 40;
   const LINK_GUARD_MS = 400;     // ignore link taps this soon after a link tap (double-tap on a link)
+  const TEXT_MIN = 14;           // text mode font size range (px), set by pinching
+  const TEXT_MAX = 48;
+  const TEXT_DEFAULT = 22;
+  const TELETEXT_COLS = 40;
 
   const $ = (id) => document.getElementById(id);
   const content = $('content');
@@ -25,6 +29,7 @@
   const btnPrev = $('btn-prev');
   const btnNext = $('btn-next');
   const btnBack = $('btn-back');
+  const btnText = $('btn-text');
 
   // page number -> { data, time }
   const cache = new Map();
@@ -34,6 +39,8 @@
   let refreshTimer = null;
   let zoom = 1;              // zoom factor of the page (1 = fit the screen)
   let lastLinkTap = 0;
+  let textMode = false;      // show pages as wrapped text instead of the GIF
+  let textSize = TEXT_DEFAULT;
 
   const isValidPage = (p) => /^\d{3}$/.test(p) && +p >= MIN_PAGE && +p <= MAX_PAGE;
 
@@ -118,25 +125,149 @@
       link.style.top = (a.y1 / size.h * 100) + '%';
       link.style.width = ((a.x2 - a.x1) / size.w * 100) + '%';
       link.style.height = ((a.y2 - a.y1) / size.h * 100) + '%';
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        // The second tap of a double-tap would otherwise hit a link on the page just opened.
-        if (e.timeStamp - lastLinkTap < LINK_GUARD_MS) return;
-        lastLinkTap = e.timeStamp;
-        link.classList.add('flash');
-        setTimeout(() => link.classList.remove('flash'), 180);
-        go(a.page);
-      });
+      onLinkTap(link, a.page);
       wrap.appendChild(link);
     }
 
-    if (count > 1) {
-      const label = document.createElement('div');
-      label.className = 'subpage-label';
-      label.textContent = (index + 1) + '/' + count;
-      wrap.appendChild(label);
-    }
+    addSubPageLabel(wrap, count, index);
     return wrap;
+  }
+
+  function onLinkTap(link, page) {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      // The second tap of a double-tap would otherwise hit a link on the page just opened.
+      if (e.timeStamp - lastLinkTap < LINK_GUARD_MS) return;
+      lastLinkTap = e.timeStamp;
+      link.classList.add('flash');
+      setTimeout(() => link.classList.remove('flash'), 180);
+      go(page);
+    });
+  }
+
+  function addSubPageLabel(wrap, count, index) {
+    if (count <= 1) return;
+    const label = document.createElement('div');
+    label.className = 'subpage-label';
+    label.textContent = (index + 1) + '/' + count;
+    wrap.prepend(label);
+  }
+
+  // ---------- Text mode ----------
+
+  // The API's altText is the page as 40-column text lines. Articles are hard-wrapped at 40 columns;
+  // join those lines back into paragraphs so they wrap to the screen at a large font size.
+  // Tables (columns separated by runs of spaces), headings, menu lines ending in a page number and
+  // the header line are kept as they are.
+  function textLines(alt) {
+    const raw = alt.split('\n').map((l) => l.replace(/\s+$/, ''));
+    const isProse = (l) => {
+      const t = l.trim();
+      return t !== '' && !/\S {2,}\S/.test(t) && !/(?<!\d)\d{3}$/.test(t) && t !== t.toUpperCase();
+    };
+    const out = [];
+    let prevRaw = '';       // previous source line, before joining
+    let seenHeader = false;
+    for (const line of raw) {
+      const last = out.length - 1;
+      const hyphen = /[a-zåäöé]-$/.test(prevRaw) && /^\s*[a-zåäö]/.test(line);
+      const firstWord = line.trim().split(' ')[0];
+      // The source line was wrapped if the next word wouldn't have fitted on it.
+      const wrapped = hyphen || prevRaw.length + 1 + firstWord.length > TELETEXT_COLS;
+      if (seenHeader && last >= 0 && wrapped && isProse(prevRaw) && isProse(line)) {
+        out[last] = hyphen ? out[last].slice(0, -1) + line.trim() : out[last] + ' ' + line.trim();
+      } else if (line.trim() === '') {
+        if (out.length && out[last] !== '') out.push('');   // collapse runs of blank lines
+      } else {
+        if (out.length) seenHeader = true;                  // the first text line is the header
+        out.push(line);
+      }
+      prevRaw = line;
+    }
+    while (out.length && out[out.length - 1] === '') out.pop();
+    return out;
+  }
+
+  function renderSubPageText(sp, count, index) {
+    const wrap = document.createElement('div');
+    wrap.className = 'subpage text';
+    wrap.id = 'sub-' + sp.subPageNumber;
+    // Only numbers that the page itself links to become links (not dates, temperatures, scores).
+    const linked = new Set(parseImageMap(sp.imageMap).map((a) => a.page));
+
+    const lines = textLines(sp.altText);
+    // Table rows (columns separated by runs of spaces) don't wrap: each run of rows gets a font size
+    // that fits its longest row across the screen, up to the chosen size (style.css, .line.table).
+    const spaced = lines.map((l, i) => i > 0 && /\S {2,}\S/.test(l));
+    // A single such line is no table (e.g. "Headline    -  132").
+    const gapped = spaced.map((s, i) => s && (spaced[i - 1] || spaced[i + 1] || spaced[i - 2] || spaced[i + 2]));
+    // A line between two rows (e.g. the period scores under each match) belongs to the table too,
+    // and so does the same kind of line after the last row, unless it's the page's bottom line.
+    const last = lines.length - 1;
+    const between = gapped.map((g, i) => !g && lines[i] !== '' && gapped[i - 1] && gapped[i + 1]);
+    const isTable = gapped.map((g, i) => g || between[i]
+      || (i < last && lines[i] !== '' && gapped[i - 1] && between[i - 2]));
+    const tableCols = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (!isTable[i] || isTable[i - 1]) continue;
+      let j = i;
+      while (isTable[j]) j++;
+      const rows = lines.slice(i, j);
+      const indent = Math.min(...rows.map((l) => l.match(/^ */)[0].length));
+      const cols = Math.max(...rows.map((l) => l.length)) - indent;
+      for (let k = i; k < j; k++) {
+        lines[k] = lines[k].slice(indent);
+        tableCols[k] = cols;
+      }
+    }
+
+    lines.forEach((line, i) => {
+      const div = document.createElement('div');
+      if (i === 0) div.className = 'line head';
+      else if (line === '') div.className = 'line blank';
+      else if (isTable[i]) {
+        div.className = 'line table';
+        div.style.setProperty('--cols', tableCols[i]);
+      }
+      else if (line.length > TELETEXT_COLS) div.className = 'line para';   // joined paragraph
+      else div.className = 'line item';   // wrapped continuation lines are indented
+      if (i > 0 && !isTable[i]) {
+        // Leading spaces only position text on the 40-column screen; tables keep theirs.
+        // "Headline...... 132" -> "Headline 132": dot leaders only waste space when text wraps.
+        line = line.trim().replace(/ {2,}/g, ' ').replace(/(\S)\s*\.{2,}\s*(\d{3}(?:-\d{3})?)$/, '$1 $2');
+      }
+      for (const part of line.split(/((?<!\d)\d{3}(?!\d))/)) {
+        if (!part) continue;
+        if (linked.has(part)) {
+          const a = document.createElement('a');
+          a.href = '#' + part;
+          a.textContent = part;
+          onLinkTap(a, part);
+          div.appendChild(a);
+        } else {
+          div.appendChild(document.createTextNode(part));
+        }
+      }
+      wrap.appendChild(div);
+    });
+
+    addSubPageLabel(wrap, count, index);
+    return wrap;
+  }
+
+  function setTextSize(px) {
+    textSize = Math.round(Math.min(TEXT_MAX, Math.max(TEXT_MIN, px)) * 2) / 2;
+    document.documentElement.style.setProperty('--text-size', textSize + 'px');
+  }
+
+  function saveTextSize() {
+    try { localStorage.setItem('texttv:textsize', textSize); } catch {}
+  }
+
+  function setTextMode(on) {
+    textMode = on;
+    btnText.setAttribute('aria-pressed', on);
+    try { localStorage.setItem('texttv:text', on ? '1' : '0'); } catch {}
   }
 
   function showMessage(html, buttons = []) {
@@ -169,7 +300,10 @@
     messageEl.hidden = true;
     const { scrollLeft, scrollTop } = content;
     const frag = document.createDocumentFragment();
-    data.subPages.forEach((sp, i) => frag.appendChild(renderSubPage(sp, data.subPages.length, i)));
+    const asText = textMode && data.subPages.every((sp) => (sp.altText || '').trim());
+    data.subPages.forEach((sp, i) => frag.appendChild(
+      (asText ? renderSubPageText : renderSubPage)(sp, data.subPages.length, i)));
+    pagesEl.classList.toggle('text', asText);
     pagesEl.replaceChildren(frag);
     if (keepScroll) content.scrollTo(scrollLeft, scrollTop);
     else content.scrollTo(0, 0);
@@ -295,6 +429,11 @@
   btnBack.addEventListener('click', back);
   $('btn-home').addEventListener('click', () => go(HOME));
   $('btn-reload').addEventListener('click', () => current && load(current, { keepScroll: true, force: true }));
+  btnText.addEventListener('click', () => {
+    setTextMode(!textMode);
+    setZoom(1);
+    if (current && currentData) render(current, currentData);
+  });
 
   // Jump as soon as three digits are typed, like a TV remote.
   input.addEventListener('input', () => {
@@ -354,7 +493,7 @@
     if (e.touches.length === 2) {
       const [a, b] = e.touches;
       const m = mid(a, b);
-      gesture = { type: 'pinch', dist: Math.max(dist(a, b), 1), zoom, ...pageFraction(m.x, m.y) };
+      gesture = { type: 'pinch', dist: Math.max(dist(a, b), 1), zoom, textSize, ...pageFraction(m.x, m.y) };
       lastTap = null;
     } else if (e.touches.length === 1) {
       const t = e.touches[0];
@@ -371,8 +510,16 @@
     e.preventDefault();   // no scrolling while pinching
     const [a, b] = e.touches;
     const m = mid(a, b);
+    const scale = dist(a, b) / gesture.dist;
+    if (pagesEl.classList.contains('text')) {
+      // Text mode: pinching sets the font size; the text rewraps, so there's nothing to pan.
+      setTextSize(gesture.textSize * scale);
+      const r = pagesEl.getBoundingClientRect();
+      content.scrollTop += r.top + gesture.fy * r.height - m.y;
+      return;
+    }
     // Following the midpoint also lets two fingers pan while zooming.
-    zoomAround(gesture.zoom * dist(a, b) / gesture.dist, gesture.fx, gesture.fy, m.x, m.y);
+    zoomAround(gesture.zoom * scale, gesture.fx, gesture.fy, m.x, m.y);
   }, { passive: false });
 
   content.addEventListener('touchend', (e) => {
@@ -382,6 +529,7 @@
     if (!g) return;
     if (g.type === 'pinch') {
       if (zoom < ZOOM_SNAP) setZoom(1);
+      if (textSize !== g.textSize) saveTextSize();
       return;
     }
 
@@ -414,6 +562,7 @@
 
   content.addEventListener('touchcancel', () => {
     if (gesture && gesture.type === 'pinch' && zoom < ZOOM_SNAP) setZoom(1);
+    if (gesture && gesture.type === 'pinch' && textSize !== gesture.textSize) saveTextSize();
     gesture = null;
   });
 
@@ -430,6 +579,13 @@
     if (!e.ctrlKey) return;
     e.preventDefault();
     const { fx, fy } = pageFraction(e.clientX, e.clientY);
+    if (pagesEl.classList.contains('text')) {
+      setTextSize(textSize * Math.exp(-e.deltaY / 200));
+      saveTextSize();
+      const r = pagesEl.getBoundingClientRect();
+      content.scrollTop += r.top + fy * r.height - e.clientY;
+      return;
+    }
     const z = zoom * Math.exp(-e.deltaY / 200);
     zoomAround(z < ZOOM_SNAP && e.deltaY > 0 ? 1 : z, fx, fy, e.clientX, e.clientY);
   }, { passive: false });
@@ -450,6 +606,10 @@
     try { start = localStorage.getItem('texttv:last') || HOME; } catch { start = HOME; }
     if (!isValidPage(start)) start = HOME;
   }
+  try {
+    setTextMode(localStorage.getItem('texttv:text') === '1');
+    setTextSize(+localStorage.getItem('texttv:textsize') || TEXT_DEFAULT);
+  } catch { setTextMode(false); setTextSize(TEXT_DEFAULT); }
   history.replaceState({ depth: 0 }, '', '#' + start);
   updateBack();
   load(start);

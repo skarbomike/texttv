@@ -11,6 +11,8 @@
   --safe-top: env(safe-area-inset-top, 0px);
   /* Vertical stretch of the Text-TV page; set with the img aspect-ratio at the end of the file. */
   --stretch: 1;
+  /* Font size in text mode; set by app.js (pinch). */
+  --text-size: 22px;
 }
 
 * { box-sizing: border-box; }
@@ -60,6 +62,7 @@ html, body {
   margin: auto;
   transition: opacity 120ms;
 }
+#pages.text { width: calc(100% - 20px); max-width: 60em; container-type: inline-size; }
 #pages:empty { display: none; }
 #pages.loading { opacity: 0.55; }
 
@@ -106,6 +109,36 @@ html, body {
 .link:active, .link.flash {
   background: rgba(255, 222, 0, 0.45);
 }
+
+/* Text mode: the page as real text that wraps to the screen, in a size set by pinching. */
+.subpage.text {
+  line-height: 1.35;
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  font-size: var(--text-size);
+  font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.subpage.text + .subpage.text { margin-top: 0.8em; padding-top: 0.8em; border-top: 1px solid var(--bar-border); }
+.subpage.text .line.head { font-size: 0.6em; font-weight: 400; color: #999; }
+.subpage.text .line.blank { height: 0.5em; }
+.subpage.text .line.item { padding-left: 1.5ch; text-indent: -1.5ch; }
+/* --cols (set by app.js) = longest row of this table; a monospace character is about 0.6em wide. */
+.subpage.text .line.table {
+  white-space: pre;
+  overflow: hidden;
+  font-size: min(var(--text-size), 100cqw / (var(--cols) * 0.62));
+}
+.subpage.text .subpage-label { position: static; float: right; border-radius: 4px; margin-left: 6px; }
+.subpage.text a {
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: 4px;
+  /* A bigger tap area without moving the text. */
+  padding: 0.1em 0.15em;
+  margin: -0.1em -0.15em;
+}
+.subpage.text a:active, .subpage.text a.flash { background: rgba(255, 222, 0, 0.35); }
 
 #message {
   margin: auto 20px;
@@ -170,6 +203,9 @@ html, body {
 #toolbar button { flex: 1 1 0; max-width: 64px; padding: 0; }
 #toolbar button:active { background: var(--btn-active); }
 #toolbar button:disabled { opacity: 0.35; }
+#btn-text { font-size: 17px !important; font-weight: 600; }
+#btn-text[aria-pressed="true"] { color: #000; background: var(--accent); border-color: var(--accent); }
+#btn-text[aria-pressed="true"]:active { background: #c9af00; }
 #btn-home { font-size: 16px !important; font-weight: 600; color: var(--accent) !important; }
 
 #page-form { flex: 1.4 1 0; max-width: 96px; margin: 0; }
