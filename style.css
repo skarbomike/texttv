@@ -236,9 +236,9 @@ html, body {
 #page-input::placeholder { color: var(--accent); opacity: 0.8; }
 #page-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
-/* Portrait has room to spare vertically: make the page, and its letters, 54% taller.
-   --stretch and the aspect-ratio (520 x 400*1.54) must match. Links are placed in %, so they follow. */
+/* Portrait has room to spare vertically: make the page, and its letters, 50% taller.
+   --stretch and the aspect-ratio (520 x 400*1.5) must match. Links are placed in %, so they follow. */
 @media (orientation: portrait) {
-  :root { --stretch: 1.54; }
-  .subpage img { aspect-ratio: 520 / 616; }
+  :root { --stretch: 1.5; }
+  .subpage img { aspect-ratio: 520 / 600; }
 }
