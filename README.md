@@ -17,7 +17,8 @@ Added to the home screen, it opens full-screen like a native app.
 - **Large text (`Aa`):** shows the page as real text that wraps to the screen width, instead of
   the Text-TV picture. Page numbers are still tappable (yellow). Article lines are joined into
   paragraphs; tables and menus keep their lines and wrap if they don't fit. **Pinch** to set the
-  text size (Ctrl + scroll wheel on a computer). The app remembers the mode and the size.
+  text size (Ctrl + scroll wheel on a computer); **press and hold `Aa`** to go back to the
+  default size. The app remembers the mode and the size.
   Colours and graphics are not shown in this mode; tap `Aa` again to go back to the picture.
   Typing three digits in the field jumps straight to that page, like a TV remote.
 - Pages with several subpages (e.g. 360) are shown one below the other, marked `1/2`, `2/2`.

@@ -19,6 +19,7 @@
   const TEXT_MAX = 48;
   const TEXT_DEFAULT = 22;
   const TELETEXT_COLS = 40;
+  const HOLD_MS = 600;           // holding Aa this long resets the text size
 
   const $ = (id) => document.getElementById(id);
   const content = $('content');
@@ -429,7 +430,28 @@
   btnBack.addEventListener('click', back);
   $('btn-home').addEventListener('click', () => go(HOME));
   $('btn-reload').addEventListener('click', () => current && load(current, { keepScroll: true, force: true }));
+  // Tap Aa: switch between picture and text. Hold Aa: back to the default text size (and no zoom).
+  let holdTimer = null;
+  let held = false;
+  const cancelHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+  btnText.addEventListener('pointerdown', () => {
+    held = false;
+    cancelHold();
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      held = true;
+      setTextSize(TEXT_DEFAULT);
+      saveTextSize();
+      setZoom(1);
+      btnText.classList.remove('flash');
+      void btnText.offsetWidth;   // restart the animation
+      btnText.classList.add('flash');
+    }, HOLD_MS);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) btnText.addEventListener(type, cancelHold);
+  btnText.addEventListener('contextmenu', (e) => e.preventDefault());   // Android long-press menu
   btnText.addEventListener('click', () => {
+    if (held) { held = false; return; }   // the click that ends a hold doesn't switch modes
     setTextMode(!textMode);
     setZoom(1);
     if (current && currentData) render(current, currentData);
